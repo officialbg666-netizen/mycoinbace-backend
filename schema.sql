@@ -4,8 +4,10 @@
 CREATE TABLE users (
     id UUID PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
     email TEXT UNIQUE NOT NULL,
-    balance NUMERIC DEFAULT 0,
-    role TEXT DEFAULT 'user',
+    balance NUMERIC DEFAULT 10,
+    role TEXT DEFAULT 'user', -- 'user', 'admin'
+    is_frozen BOOLEAN DEFAULT FALSE,
+    allow_withdrawal BOOLEAN DEFAULT TRUE,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc', now())
 );
 
