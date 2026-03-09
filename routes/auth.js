@@ -22,7 +22,7 @@ const authMiddleware = async (req, res, next) => {
     
     // If the profile doesn't exist in our custom users table, create it now
     if (!profile) {
-        console.log(`Initial sync for: ${user.email}`);
+        console.log(`Syncing missing user profile: ${user.email}`);
         const { data: newProfile, error: insertError } = await supabase
             .from('users')
             .upsert([{ 
@@ -30,25 +30,30 @@ const authMiddleware = async (req, res, next) => {
                 email: user.email, 
                 balance: 0, 
                 role: (process.env.ADMIN_EMAIL === user.email) ? 'admin' : 'user' 
-            }])
+            }], { onConflict: 'id' })
             .select()
             .single();
         
-        if (!insertError) profile = newProfile;
+        if (insertError) {
+            console.error('CRITICAL: Failed to create user profile in custom table:', insertError);
+            // If we can't create the user record, we MUST NOT proceed to API routes
+            return res.status(500).json({ error: 'System busy, please refresh and try again. (User sync failed)' });
+        }
+        profile = newProfile;
     }
 
-    // AUTO-PROMOTE: If email matches ADMIN_EMAIL env var, ensure they are admin
+    // Ensure Admin status if environment variable matches
     if (profile && user.email === process.env.ADMIN_EMAIL && profile.role !== 'admin') {
-        const { data: updatedProfile } = await supabase
+        const { data: updatedAdmin } = await supabase
             .from('users')
             .update({ role: 'admin' })
             .eq('id', user.id)
             .select()
             .single();
-        if (updatedProfile) profile = updatedProfile;
+        if (updatedAdmin) profile = updatedAdmin;
     }
     
-    req.user = profile || { id: user.id, email: user.email, role: 'user', balance: 0 };
+    req.user = profile;
     next();
 };
 
