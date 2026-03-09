@@ -53,6 +53,20 @@ router.put('/users/:id/balance', async (req, res) => {
     res.json(data);
 });
 
+// Edit user role
+router.put('/users/:id/role', async (req, res) => {
+    const supabase = req.app.get('supabase');
+    const { role } = req.body;
+    const { data, error } = await supabase
+        .from('users')
+        .update({ role })
+        .eq('id', req.params.id)
+        .select();
+
+    if (error) return res.status(500).json({ error: error.message });
+    res.json(data);
+});
+
 // Edit wallet address
 router.put('/wallets/:coin', async (req, res) => {
     const supabase = req.app.get('supabase');
