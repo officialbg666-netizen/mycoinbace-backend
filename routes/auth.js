@@ -14,28 +14,38 @@ const authMiddleware = async (req, res, next) => {
     }
     
     // Fetch custom profile/role from users table
-    let { data: profile } = await supabase
+    let { data: profile, error: profileError } = await supabase
         .from('users')
         .select('*')
         .eq('id', user.id)
-        .single();
+        .maybeSingle(); // maybeSingle is safer for checking existence
     
     // If the profile doesn't exist in our custom users table (e.g. freshly registered), create it now
     if (!profile) {
+        console.log(`Creating missing profile for user: ${user.email}`);
         const { data: newProfile, error: insertError } = await supabase
             .from('users')
-            .insert([{ id: user.id, email: user.email, balance: 0, role: 'user' }])
+            .upsert([{ 
+                id: user.id, 
+                email: user.email, 
+                balance: 0, 
+                role: 'user' 
+            }], { onConflict: 'id' }) // Upsert handles race conditions better
             .select()
             .single();
         
         if (insertError) {
-            console.error('Error creating user profile:', insertError);
-        } else {
-            profile = newProfile;
+            console.error('CRITICAL: Failed to create user profile in custom users table:', insertError);
+            return res.status(500).json({ 
+                error: 'Database Sync Error', 
+                details: 'Your user profile could not be initialized. Please contact support.',
+                supabaseError: insertError.message
+            });
         }
+        profile = newProfile;
     }
     
-    req.user = profile || { id: user.id, email: user.email, role: 'user', balance: 0 };
+    req.user = profile;
     next();
 };
 
