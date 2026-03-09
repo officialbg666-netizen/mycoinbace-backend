@@ -12,7 +12,29 @@ router.use((req, res, next) => {
 // List all users
 router.get('/users', async (req, res) => {
     const supabase = req.app.get('supabase');
-    const { data, error } = await supabase.from('users').select('*');
+    const { data, error } = await supabase.from('users').select('*').order('created_at', { ascending: false });
+    if (error) return res.status(500).json({ error: error.message });
+    res.json(data);
+});
+
+// List all deposits
+router.get('/deposits', async (req, res) => {
+    const supabase = req.app.get('supabase');
+    const { data, error } = await supabase
+        .from('deposits')
+        .select('*, users(email)')
+        .order('created_at', { ascending: false });
+    if (error) return res.status(500).json({ error: error.message });
+    res.json(data);
+});
+
+// List all withdrawals
+router.get('/withdrawals', async (req, res) => {
+    const supabase = req.app.get('supabase');
+    const { data, error } = await supabase
+        .from('withdrawals')
+        .select('*, users(email)')
+        .order('created_at', { ascending: false });
     if (error) return res.status(500).json({ error: error.message });
     res.json(data);
 });
