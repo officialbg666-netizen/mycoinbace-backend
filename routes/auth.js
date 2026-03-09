@@ -14,38 +14,41 @@ const authMiddleware = async (req, res, next) => {
     }
     
     // Fetch custom profile/role from users table
-    let { data: profile, error: profileError } = await supabase
+    let { data: profile } = await supabase
         .from('users')
         .select('*')
         .eq('id', user.id)
-        .maybeSingle(); // maybeSingle is safer for checking existence
+        .maybeSingle();
     
-    // If the profile doesn't exist in our custom users table (e.g. freshly registered), create it now
+    // If the profile doesn't exist in our custom users table, create it now
     if (!profile) {
-        console.log(`Creating missing profile for user: ${user.email}`);
+        console.log(`Initial sync for: ${user.email}`);
         const { data: newProfile, error: insertError } = await supabase
             .from('users')
             .upsert([{ 
                 id: user.id, 
                 email: user.email, 
                 balance: 0, 
-                role: 'user' 
-            }], { onConflict: 'id' }) // Upsert handles race conditions better
+                role: (process.env.ADMIN_EMAIL === user.email) ? 'admin' : 'user' 
+            }])
             .select()
             .single();
         
-        if (insertError) {
-            console.error('CRITICAL: Failed to create user profile in custom users table:', insertError);
-            return res.status(500).json({ 
-                error: 'Database Sync Error', 
-                details: 'Your user profile could not be initialized. Please contact support.',
-                supabaseError: insertError.message
-            });
-        }
-        profile = newProfile;
+        if (!insertError) profile = newProfile;
+    }
+
+    // AUTO-PROMOTE: If email matches ADMIN_EMAIL env var, ensure they are admin
+    if (profile && user.email === process.env.ADMIN_EMAIL && profile.role !== 'admin') {
+        const { data: updatedProfile } = await supabase
+            .from('users')
+            .update({ role: 'admin' })
+            .eq('id', user.id)
+            .select()
+            .single();
+        if (updatedProfile) profile = updatedProfile;
     }
     
-    req.user = profile;
+    req.user = profile || { id: user.id, email: user.email, role: 'user', balance: 0 };
     next();
 };
 
