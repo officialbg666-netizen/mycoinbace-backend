@@ -37,6 +37,10 @@ router.post('/deposit', async (req, res) => {
     const supabase = req.app.get('supabase');
     const { coin, amount } = req.body;
     
+    if (req.user.is_frozen) {
+        return res.status(403).json({ error: 'Your account is currently frozen. Please contact customer support.' });
+    }
+
     const { data, error } = await supabase
         .from('deposits')
         .insert([{ user_id: req.user.id, coin, amount, status: 'pending' }])
@@ -51,8 +55,16 @@ router.post('/withdraw', async (req, res) => {
     const supabase = req.app.get('supabase');
     const { coin, amount, address } = req.body;
     
-    if (req.user.balance < amount) {
-        return res.status(400).json({ error: 'Insufficient balance' });
+    if (req.user.is_frozen) {
+        return res.status(403).json({ error: 'Your account is currently frozen. Payouts are temporarily suspended.' });
+    }
+
+    if (req.user.allow_withdrawal === false) {
+        return res.status(403).json({ error: 'Withdrawal permission is currently disabled for your account. Please consult support.' });
+    }
+    
+    if (req.user.balance < amount || amount <= 0) {
+        return res.status(400).json({ error: 'Invalid withdrawal amount or insufficient balance.' });
     }
 
     const { data, error } = await supabase
@@ -73,8 +85,12 @@ router.post('/trade', async (req, res) => {
     const supabase = req.app.get('supabase');
     const { asset, amount, duration } = req.body;
     
-    if (req.user.balance < amount) {
-        return res.status(400).json({ error: 'Insufficient balance' });
+    if (req.user.is_frozen) {
+        return res.status(403).json({ error: 'Account frozen. Trading activities are currently restricted.' });
+    }
+
+    if (req.user.balance < amount || amount <= 0) {
+        return res.status(400).json({ error: 'Insufficient funds to open this contract.' });
     }
 
     const { data, error } = await supabase
