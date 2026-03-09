@@ -39,6 +39,17 @@ router.get('/withdrawals', async (req, res) => {
     res.json(data);
 });
 
+// List all trades (for manual resolution)
+router.get('/trades', async (req, res) => {
+    const supabase = req.app.get('supabase');
+    const { data, error } = await supabase
+        .from('trades')
+        .select('*, users(email)')
+        .order('created_at', { ascending: false });
+    if (error) return res.status(500).json({ error: error.message });
+    res.json(data);
+});
+
 // Edit user balance
 router.put('/users/:id/balance', async (req, res) => {
     const supabase = req.app.get('supabase');
